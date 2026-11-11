@@ -3,6 +3,7 @@ from PIL import Image
 from io import BytesIO
 from vcube.tile import TileProcessor
 import os
+import base64
 import folium
 import tempfile
 import datetime
@@ -24,8 +25,16 @@ async def generate_tiles_and_map(
 ):
     media_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "media")
     os.makedirs(media_dir, exist_ok=True)
+    try:
+        os.chmod(media_dir, 0o755)
+    except Exception:
+        pass
     tiles_dir = os.path.join(media_dir, "tiles")
     os.makedirs(tiles_dir, exist_ok=True)
+    try:
+        os.chmod(tiles_dir, 0o755)
+    except Exception:
+        pass
 
     tiles = list(mercantile.tiles(min_lon, min_lat, max_lon, max_lat, zooms=zoom_level))
     print(f"Number of tiles to process: {len(tiles)}")
@@ -60,9 +69,13 @@ async def generate_tiles_and_map(
             filename = f'tile_{x}_{y}_{z}.png'
             file_path = os.path.join(tiles_dir, filename)
             image.save(file_path)
+            try:
+                os.chmod(file_path, 0o644)  # Make tile image world-readable for Apache
+            except Exception:
+                pass
             
-            # Create relative path from media directory
-            relative_path = os.path.join("media/tiles", filename)
+            # Create relative path from media directory (always using forward slashes)
+            relative_path = f"media/tiles/{filename}"
             
             print(f"Saved image to: {file_path}")
             results.append({
@@ -88,13 +101,17 @@ async def generate_tiles_and_map(
             tile = mercantile.Tile(x=x, y=y, z=z)
             bounds = mercantile.bounds(tile)
             folium_bounds = [[bounds.south, bounds.west], [bounds.north, bounds.east]]
-            # Use full path for folium but relative path in results
             image_path = os.path.join(media_dir, result['file_path'])
             if os.path.exists(image_path):
+                # Embed image as base64 so the HTML is fully self-contained
+                # and works regardless of where it is served from.
+                with open(image_path, 'rb') as img_file:
+                    img_b64 = base64.b64encode(img_file.read()).decode('utf-8')
+                image_data_uri = f"data:image/png;base64,{img_b64}"
                 folium.raster_layers.ImageOverlay(
-                    image=image_path,
+                    image=image_data_uri,
                     bounds=folium_bounds,
-                    opacity=0.8, 
+                    opacity=0.8,
                     interactive=True,
                     name=f"Tile {x}_{y}_{z}",
                     overlay=True,
@@ -107,14 +124,10 @@ async def generate_tiles_and_map(
         folium.LayerControl().add_to(m)
         m.fit_bounds([[min_lat, min_lon], [max_lat, max_lon]])
         
-        # Create a directory for maps if it doesn't exist
-        maps_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static", "maps")
-        os.makedirs(maps_dir, exist_ok=True)
-        
-        # Save map to a specific location with a more descriptive filename
+        # Save map to tempdir so TileMapView can serve it via /api/tile-map/
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         map_filename = f"satellite_map_{int(center_lat)}_{int(center_lon)}_{timestamp}.html"
-        map_file = os.path.join(maps_dir, map_filename)
+        map_file = os.path.join(tempfile.gettempdir(), map_filename)
         m.save(map_file)
         map_path = map_file
         

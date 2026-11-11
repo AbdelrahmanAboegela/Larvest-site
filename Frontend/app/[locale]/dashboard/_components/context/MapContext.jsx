@@ -190,7 +190,10 @@ export function MapProvider({ children }) {
     },
     {
       name: t('map.presetFormulas.EVI.name'),
-      formula: "2.5*((band2-band1)/(band2+6*band1-7.5*band1+1))",
+      // EVI = 2.5 * (NIR - Red) / (NIR + 6*Red - 7.5*Blue + 1)
+      // Blue band is approximated as 0.1 since the form only supports 2 bands.
+      // For a proper 3-band EVI, a dedicated blue band input would be needed.
+      formula: "2.5*((band2-band1)/(band2+6*band1-7.5*0.1+1))",
       band1: "red",
       band2: "nir",
       description: t('map.presetFormulas.EVI.description')
@@ -718,18 +721,29 @@ export function MapProvider({ children }) {
   const handleTileFormSubmit = async (e) => {
     e.preventDefault();
 
+    // Capture the effective bounds into a local variable first to avoid
+    // reading stale React state after calling setTileFormData below.
+    let effectiveBounds = {
+      min_lon: tileFormData.min_lon,
+      min_lat: tileFormData.min_lat,
+      max_lon: tileFormData.max_lon,
+      max_lat: tileFormData.max_lat,
+    };
+
     if (useCurrentMapBounds && mapInstance) {
       const bounds = mapInstance.getBounds();
       const sw = bounds.getSouthWest();
       const ne = bounds.getNorthEast();
 
-      setTileFormData(prev => ({
-        ...prev,
+      effectiveBounds = {
         min_lon: sw.lng,
         min_lat: sw.lat,
         max_lon: ne.lng,
-        max_lat: ne.lat
-      }));
+        max_lat: ne.lat,
+      };
+
+      // Keep state in sync (non-blocking, used for display only at this point)
+      setTileFormData(prev => ({ ...prev, ...effectiveBounds }));
     }
 
     setIsGeneratingTiles(true);
@@ -741,12 +755,16 @@ export function MapProvider({ children }) {
     );
 
     try {
-      const response = await generateTiles({
+      // Use effectiveBounds (not tileFormData) to avoid stale-state issue
+      const requestPayload = {
         ...tileFormData,
-        lat: (tileFormData.min_lat + tileFormData.max_lat) / 2,
-        lng: (tileFormData.min_lon + tileFormData.max_lon) / 2,
+        ...effectiveBounds,
+        lat: (effectiveBounds.min_lat + effectiveBounds.max_lat) / 2,
+        lng: (effectiveBounds.min_lon + effectiveBounds.max_lon) / 2,
         zoom: tileFormData.zoom_level,
-      }).unwrap();
+      };
+
+      const response = await generateTiles(requestPayload).unwrap();
 
       if (response.tiles_generated > 0 && response.results && response.results.length > 0) {
         setGeneratedTiles(response.results);

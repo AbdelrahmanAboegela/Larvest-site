@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -20,12 +21,24 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-^olg_jusi!63^qnce+flyw)pyb3eq6j92_fv0#+6ybjq_uhs87'
+# Set DJANGO_SECRET_KEY as an environment variable on your server.
+SECRET_KEY = os.environ.get(
+    'DJANGO_SECRET_KEY',
+    'django-insecure-^olg_jusi!63^qnce+flyw)pyb3eq6j92_fv0#+6ybjq_uhs87'  # fallback for local dev only
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+# Set DEBUG=False on the server via environment variable, or hardcode False here before deploying.
+DEBUG = os.environ.get('DJANGO_DEBUG', 'False') == 'True'
 
-ALLOWED_HOSTS = ['api.larvest.ai', 'larvest.ai']
+ALLOWED_HOSTS = [
+    'api.larvest.ai',
+    'larvest.ai',
+    'www.larvest.ai',
+    's2950.fra1.stableserver.net',  # GooHost server hostname (safety fallback)
+    'localhost',
+    '127.0.0.1',
+]
 
 
 # Application definition
@@ -48,11 +61,14 @@ CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOWED_ORIGINS = [
     'https://larvest.ai',
     'https://www.larvest.ai',
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
 ]
 # SITE_URL = 'http://localhost:5173'
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-     'corsheaders.middleware.CorsMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # Serves static files in production
+    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -102,6 +118,16 @@ SPECTACULAR_SETTINGS = {
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
 }
+
+# Silence expected warnings that are handled outside Django:
+#   security.W008 — SECURE_SSL_REDIRECT is False intentionally; HTTP→HTTPS
+#                   redirect is done by Apache .htaccess on cPanel hosting.
+#   drf_spectacular.W002 — TileMapView & WindyAccessView have no serializer
+#                           by design (they return FileResponse/plain JSON).
+SILENCED_SYSTEM_CHECKS = [
+    'security.W008',
+    'drf_spectacular.W002',
+]
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
@@ -130,9 +156,29 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
-
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# ── Production Security Headers ────────────────────────────────────────────────
+# These only take effect when DEBUG=False (i.e. on the live server).
+if not DEBUG:
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = 'DENY'
+    # NOTE: On cPanel/GooHost shared hosting, SSL is terminated by Apache — Django
+    # receives plain HTTP internally. SECURE_SSL_REDIRECT=True would cause an
+    # infinite redirect loop. Instead, Apache handles HTTP→HTTPS via .htaccess,
+    # and we use SECURE_PROXY_SSL_HEADER so Django correctly recognises HTTPS
+    # requests forwarded through the proxy.
+    SECURE_SSL_REDIRECT = False
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SESSION_COOKIE_SECURE = True        # Session cookie only sent over HTTPS
+    CSRF_COOKIE_SECURE = True           # CSRF cookie only sent over HTTPS
+    SECURE_HSTS_SECONDS = 31536000      # Tell browsers to use HTTPS for 1 year
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True

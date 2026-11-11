@@ -1,0 +1,21 @@
+# DO NOT REMOVE. CLOUDLINUX PASSENGER CONFIGURATION BEGIN
+PassengerAppRoot "/home/byxtwipq/larvest_backend"
+PassengerBaseURI "/"
+PassengerPython "/home/byxtwipq/virtualenv/larvest_backend/3.10/bin/python"
+# DO NOT REMOVE. CLOUDLINUX PASSENGER CONFIGURATION END
+
+# ── 1. Enable CORS for all media and static assets ───────────────────────────
+<FilesMatch "\.(png|jpg|jpeg|gif|ico|svg|css|js|txt|html|json)$">
+    Header set Access-Control-Allow-Origin "*"
+    Header set Access-Control-Allow-Methods "GET, OPTIONS"
+</FilesMatch>
+
+RewriteEngine On
+
+# ── 2. Force HTTPS ───────────────────────────────────────────────────────────
+RewriteCond %{HTTPS} off
+RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+
+# ── 3. Serve existing static/media files directly via Apache ─────────────────
+RewriteCond %{REQUEST_FILENAME} -f
+RewriteRule ^ - [L]

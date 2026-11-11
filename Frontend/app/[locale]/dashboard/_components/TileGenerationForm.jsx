@@ -121,27 +121,40 @@ const TileGenerationForm = () => {
   const handleTimeSeriesSubmit = async (e) => {
     e.preventDefault();
 
+    // Capture the effective bounds into a local variable first to avoid
+    // reading stale React state after calling setTileFormData below.
+    let effectiveBounds = {
+      min_lon: tileFormData.min_lon,
+      min_lat: tileFormData.min_lat,
+      max_lon: tileFormData.max_lon,
+      max_lat: tileFormData.max_lat,
+    };
+
     if (useCurrentMapBounds && mapInstance) {
       const bounds = mapInstance.getBounds();
       const sw = bounds.getSouthWest();
       const ne = bounds.getNorthEast();
 
-      setTileFormData(prev => ({
-        ...prev,
+      effectiveBounds = {
         min_lon: sw.lng,
         min_lat: sw.lat,
         max_lon: ne.lng,
-        max_lat: ne.lat
-      }));
+        max_lat: ne.lat,
+      };
+
+      // Keep state in sync (non-blocking, used for display only at this point)
+      setTileFormData(prev => ({ ...prev, ...effectiveBounds }));
     }
 
     const loadingToast = toast.loading(t('tileGeneration.timeSeries.loading'), { duration: Infinity });
 
     try {
+      // Use effectiveBounds (not tileFormData) to avoid stale-state issue
       const response = await timeSeries({
         ...tileFormData,
-        lat: (tileFormData.min_lat + tileFormData.max_lat) / 2,
-        lng: (tileFormData.min_lon + tileFormData.max_lon) / 2,
+        ...effectiveBounds,
+        lat: (effectiveBounds.min_lat + effectiveBounds.max_lat) / 2,
+        lng: (effectiveBounds.min_lon + effectiveBounds.max_lon) / 2,
         zoom: tileFormData.zoom_level,
       }).unwrap();
 

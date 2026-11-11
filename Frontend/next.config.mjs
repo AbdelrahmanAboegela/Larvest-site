@@ -1,11 +1,17 @@
 /** @type {import('next').NextConfig} */
+const isDev = process.env.NODE_ENV === 'development';
+
 const nextConfig = {
   images: {
     domains: ['api.windy.com', 'larvest.ai'],
     unoptimized: true, // Required for static export
   },
-  output: 'export',
-  trailingSlash: true, // Generates en/index.html instead of en.html for shared hosting
+  // In development, skip static export so rewrites/proxy work correctly.
+  // In production, use static export for shared-hosting deployment.
+  ...(isDev ? {} : {
+    output: 'export',
+    trailingSlash: true, // Generates en/index.html instead of en.html for shared hosting
+  }),
   async redirects() {
     return [
       {
@@ -16,7 +22,7 @@ const nextConfig = {
     ];
   },
   // Add backend API proxy rewrite only in development mode so next build (static export) doesn't fail
-  ...(process.env.NODE_ENV === 'development' ? {
+  ...(isDev ? {
     async rewrites() {
       return [
         {

@@ -9,11 +9,99 @@ from rest_framework.response import Response
 from rest_framework import status
 from drf_spectacular.utils import extend_schema
 from .utils import generate_tiles_and_map
-from .schemas import tile_generation_schema, TileGenerationSerializer, time_series_schema, TimeSeriesSerializer
-from .models import WindyAccessLog
+from .schemas import (
+    tile_generation_schema, TileGenerationSerializer,
+    time_series_schema, TimeSeriesSerializer,
+    FarmAreaSerializer,
+)
+from .models import WindyAccessLog, FarmArea
 
 WINDY_DAILY_LIMIT = 2
 
+
+# ── Farm Areas ────────────────────────────────────────────────────────────────
+
+class FarmAreaView(APIView):
+    """List all farm areas (GET) or create a new one (POST)."""
+    permission_classes = []
+
+    def get(self, request):
+        areas = FarmArea.objects.all()
+        data = FarmAreaSerializer(areas, many=True).data
+        return Response(data, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        serializer = FarmAreaSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        vd = serializer.validated_data
+        area = FarmArea.objects.create(
+            name=vd.get('name', ''),
+            area_coordinates=vd.get('area_coordinates', []),
+            center_coordinates=vd.get('center_coordinates'),
+            primaryCrop=vd.get('primaryCrop', ''),
+            secondaryCrops=vd.get('secondaryCrops', ''),
+            soilType=vd.get('soilType', ''),
+            irrigationSystem=vd.get('irrigationSystem', ''),
+            fertilizers=vd.get('fertilizers', ''),
+            fertilizationFrequency=vd.get('fertilizationFrequency', ''),
+            fertilizationMethod=vd.get('fertilizationMethod', ''),
+            commonPests=vd.get('commonPests', ''),
+            pesticides=vd.get('pesticides', ''),
+            previousYield=vd.get('previousYield', ''),
+            soilTestResults=vd.get('soilTestResults', ''),
+            yieldLosses=vd.get('yieldLosses', ''),
+            additionalNotes=vd.get('additionalNotes', ''),
+            soilReports=vd.get('soilReports'),
+            yieldData=vd.get('yieldData'),
+            cropPhotos=vd.get('cropPhotos'),
+            otherDocuments=vd.get('otherDocuments'),
+        )
+        return Response(FarmAreaSerializer(area).data, status=status.HTTP_201_CREATED)
+
+
+class FarmAreaDetailView(APIView):
+    """Retrieve (GET), update (PUT), or delete (DELETE) a single farm area."""
+    permission_classes = []
+
+    def _get_area(self, pk):
+        try:
+            return FarmArea.objects.get(pk=pk)
+        except FarmArea.DoesNotExist:
+            return None
+
+    def get(self, request, pk):
+        area = self._get_area(pk)
+        if not area:
+            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(FarmAreaSerializer(area).data)
+
+    def put(self, request, pk):
+        area = self._get_area(pk)
+        if not area:
+            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        serializer = FarmAreaSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        vd = serializer.validated_data
+        for field in [
+            'name', 'area_coordinates', 'center_coordinates', 'primaryCrop',
+            'secondaryCrops', 'soilType', 'irrigationSystem', 'fertilizers',
+            'fertilizationFrequency', 'fertilizationMethod', 'commonPests',
+            'pesticides', 'previousYield', 'soilTestResults', 'yieldLosses',
+            'additionalNotes', 'soilReports', 'yieldData', 'cropPhotos', 'otherDocuments',
+        ]:
+            if field in vd:
+                setattr(area, field, vd[field])
+        area.save()
+        return Response(FarmAreaSerializer(area).data)
+
+    def delete(self, request, pk):
+        area = self._get_area(pk)
+        if not area:
+            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        area.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 def get_client_ip(request):
     """Get client IP, supporting proxies/ngrok via X-Forwarded-For."""

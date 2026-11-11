@@ -2,6 +2,36 @@ from drf_spectacular.utils import extend_schema, OpenApiResponse
 from rest_framework import serializers
 
 
+# ── FarmArea ─────────────────────────────────────────────────────────────────
+
+class FarmAreaSerializer(serializers.Serializer):
+    """Mirrors the fields in FarmArea model; used for both read and write."""
+    id                    = serializers.IntegerField(read_only=True)
+    name                  = serializers.CharField(max_length=255)
+    area_coordinates      = serializers.JSONField(default=list)
+    center_coordinates    = serializers.JSONField(required=False, allow_null=True)
+    primaryCrop           = serializers.CharField(max_length=255, required=False, default='')
+    secondaryCrops        = serializers.CharField(max_length=255, required=False, default='')
+    soilType              = serializers.CharField(max_length=255, required=False, default='')
+    irrigationSystem      = serializers.CharField(max_length=255, required=False, default='')
+    fertilizers           = serializers.CharField(max_length=255, required=False, default='')
+    fertilizationFrequency = serializers.CharField(max_length=255, required=False, default='')
+    fertilizationMethod   = serializers.CharField(max_length=255, required=False, default='')
+    commonPests           = serializers.CharField(max_length=255, required=False, default='')
+    pesticides            = serializers.CharField(max_length=255, required=False, default='')
+    previousYield         = serializers.CharField(max_length=255, required=False, default='')
+    soilTestResults       = serializers.CharField(max_length=255, required=False, default='')
+    yieldLosses           = serializers.CharField(max_length=255, required=False, default='')
+    additionalNotes       = serializers.CharField(required=False, default='')
+    soilReports           = serializers.FileField(required=False, allow_null=True)
+    yieldData             = serializers.FileField(required=False, allow_null=True)
+    cropPhotos            = serializers.FileField(required=False, allow_null=True)
+    otherDocuments        = serializers.FileField(required=False, allow_null=True)
+    created_at            = serializers.DateTimeField(read_only=True)
+    updated_at            = serializers.DateTimeField(read_only=True)
+
+
+
 class TileGenerationSerializer(serializers.Serializer):
     min_lon = serializers.FloatField(default=30.304434642130218)
     min_lat = serializers.FloatField(default=30.174682637534644)

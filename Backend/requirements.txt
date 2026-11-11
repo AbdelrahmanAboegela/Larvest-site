@@ -1,4 +1,4 @@
-﻿affine==2.4.0
+affine==2.4.0
 aiocache==0.12.3
 annotated-types==0.7.0
 anyio==4.9.0
@@ -77,5 +77,6 @@ urllib3==2.4.0
 uvicorn==0.34.0
 VirtuGhan==0.6.1
 websocket-client==1.8.0
+whitenoise==6.9.0
 wsproto==1.2.0
 xyzservices==2025.1.0
